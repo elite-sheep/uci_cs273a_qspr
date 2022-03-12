@@ -2,8 +2,10 @@
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import numpy as np
 from metrics import log_rmse, aare
+import os
 
 class FFANN(nn.Module):
     def __init__(self, input_size, hidden_layer_size, weights=None):
@@ -19,6 +21,29 @@ class FFANN(nn.Module):
         hidden = self.hidden_layer(x)
         y = self.out_layer(x)
         return y
+
+def train(train_x, train_y, hidden_layer_size, lr=0.01, momentum=0.9, n_epoches=8, out_dir="./weights/"):
+    num_of_data_points = train_x.shape[0]
+    input_size = train_x.shape[1]
+    learner = FFANN(input_size, hidden_layer_size, weights=None)
+    loss_func = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(learner.parameters(), lr=lr, momentum=momentum)
+
+    for epoch in range(n_epoches):
+        running_loss = 0.0
+        for i, x in enumerate(train_x):
+            y_ref = train_y[i]
+            optimizer.zero_grad()
+            y = learner(x)
+            loss = loss_func(y, y_ref)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+        torch.save(learner.state_dict(), os.path.join(out_dir, "weights_{}.pt".format(epoch)))
+        print("Epoch #{}: Loss = {}".format(epoch, running_loss/num_of_data_points))
+
+    return learner
 
 def test(input_x, hidden_layer_size, weights, ref_y=None):
     num_of_data_points = input_x.shape[0]
