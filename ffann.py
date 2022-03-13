@@ -11,6 +11,7 @@ class FFANN(nn.Module):
     def __init__(self, input_size, hidden_layer_size, weights=None):
         super(FFANN, self).__init__()
         self.hidden_layer = nn.Linear(input_size, hidden_layer_size, bias=True)
+        self.activation = nn.Tanh()
         self.out_layer = nn.Linear(hidden_layer_size, 1, bias = True)
         if weights is not None:
             with torch.no_grad():
@@ -21,7 +22,8 @@ class FFANN(nn.Module):
 
     def forward(self, x):
         hidden = self.hidden_layer(x)
-        y = self.out_layer(hidden)
+        act = self.activation(hidden)
+        y = self.out_layer(act)
         return y
 
 def train(train_x, train_y, hidden_layer_size, lr=0.01, momentum=0.9, n_epoches=8, out_dir="./weights/"):
@@ -86,11 +88,14 @@ print(n_max)
 for i in range(test_x.shape[0]):
     test_x[i] = 2. * (test_x[i] - n_min) / (n_max - n_min) - 1.
 
-y, y_rmse, _ = test(torch.tensor(test_x, dtype=torch.float), 4, weights, test_y)
+y, y_rmse, y_aare = test(torch.tensor(test_x, dtype=torch.float), 4, weights, test_y)
 min_y = 0.3985
 max_y = 11.230
+#min_y = np.min(y)
+#max_y = np.max(y)
 y = 0.5 * (y + 1.) * (max_y - min_y) + min_y
 print(y)
 print(test_y)
 y_rmse = rmse(y, test_y)
-print(y-test_y)
+print(y_rmse)
+print(y_aare)
