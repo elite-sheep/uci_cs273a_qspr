@@ -12,5 +12,5 @@ def log_rmse(y, y_reference):
     return np.sqrt(log_mse)
 
 def aare(y, y_reference):
-    relative_diff = np.abs(np.divide(y, y_reference) - 1.)
+    relative_diff = np.abs(np.divide(np.exp(y), np.exp(y_reference)) - 1.)
     return relative_diff.mean()
