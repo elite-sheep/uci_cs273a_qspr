@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from metrics import log_rmse, aare
+from metrics import rmse, aare
 import os
 
 class FFANN(nn.Module):
@@ -58,13 +58,13 @@ def test(input_x, hidden_layer_size, weights, ref_y=None):
     for i in range(num_of_data_points):
         y[i] = learner(input_x[i])
 
-    log_rmse = None
+    rmse = None
     aare = None
     if ref_y is not None:
-        log_rmse = log_rmse(y, ref_y)
+        rmse = rmse(y, ref_y)
         aare = aare(y, ref_y)
 
-    return y
+    return y, rmse, aare
 
 weights = np.genfromtxt("./weights/ffann4_weights.txt", delimiter=None)
 weights = {
