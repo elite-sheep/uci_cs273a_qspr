@@ -11,42 +11,18 @@ from deepchem import gen_numpy_deepchem
 import os
 import sys
 
-class FFANN(nn.Module):
-    def __init__(self, input_size, hidden_layer_size, weights=None):
-        super(FFANN, self).__init__()
-        self.model = nn.Sequential(
-                nn.Linear(input_size, hidden_layer_size, bias=True),
-                nn.Tanh(),
-                nn.Linear(hidden_layer_size, 1, bias=True)
-        )
-        if weights is not None:
-            with torch.no_grad():
-                self.hidden_layer.weight.copy_(torch.tensor(weights['hidden_layer'], dtype=torch.double))
-                self.hidden_layer.bias.copy_(torch.tensor(weights['hidden_layer_bias'], dtype=torch.double))
-                self.out_layer.weight.copy_(torch.tensor(weights['output_layer'], dtype=torch.double))
-                self.out_layer.bias.copy_(torch.tensor(weights['output_layer_bias'], dtype=torch.double))
-
-    def init(self):
-        torch.nn.init.xavier_uniform_(self.model.weight)
-
-    def forward(self, x):
-        y = self.model(x)
-        return y
-
-    def save(self, path):
-        torch.save(self.state_dict(), path)
-
-def train(train_x, train_y, hidden_layer_size, lr=0.001, n_epoches=8, out_dir="./weights/"):
+def train(train_x, train_y, hidden_layer_size, lr=0.01, n_epoches=8, out_dir="./weights/"):
     num_of_data_points = train_x.shape[0]
     input_size = train_x.shape[1]
-    train_y = train_y.view(train_y.shape[0], 1)
-    learner = FFANN(input_size, hidden_layer_size, weights=None)
+    train_y = train_y.view(train_y.shape[0], 1, 1)
+    train_x = train_x.reshape((num_of_data_points, 1, train_x.shape[1]))
+    learner = nn.RNN(input_size, hidden_size=hidden_layer_size, num_layers=2)
     #learner.load_state_dict(torch.load('./weights/baseline_weights.pt'))
     #learner.eval()
     #learner.init()
     loss_func = nn.MSELoss()
-    optimizer = optim.Adam(learner.parameters(), lr=lr, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[32768,65536], gamma=0.6)
+    optimizer = optim.Adam(learner.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[32768,65536], gamma=0.1)
 
     batch_size = int(num_of_data_points / 8 + 1)
     for epoch in range(n_epoches):
@@ -54,7 +30,7 @@ def train(train_x, train_y, hidden_layer_size, lr=0.001, n_epoches=8, out_dir=".
             idx = torch.randint(0, num_of_data_points, (batch_size,))
             running_loss = 0.0
             optimizer.zero_grad()
-            y = learner(train_x[idx])
+            y,hn = learner(train_x[idx])
             loss = loss_func(y, train_y[idx])
             loss.backward()
             optimizer.step()
@@ -72,7 +48,7 @@ def test(input_x, hidden_layer_size, weights, ref_y=None):
     input_size = input_x.shape[1]
 
     # Initialize the neural network
-    learner = FFANN(input_size, hidden_layer_size, weights)
+    learner = nn.RNN(input_size, hidden_size=hidden_layer_size, num_layers=2)
 
     y = np.zeros(num_of_data_points)
     for i in range(num_of_data_points):
@@ -90,14 +66,15 @@ def test(input_x, hidden_layer_size, weights_file, ref_y=None):
     num_of_data_points = input_x.shape[0]
     input_size = input_x.shape[1]
 
+    input_x = input_x.reshape((num_of_data_points, 1, input_x.shape[1]))
     # Initialize the neural network
-    learner = FFANN(input_size, hidden_layer_size)
+    learner = nn.RNN(input_size, hidden_size=hidden_layer_size, num_layers=2)
     learner.load_state_dict(torch.load(weights_file))
     learner.eval()
 
     y = np.zeros(num_of_data_points)
     for i in range(num_of_data_points):
-        y[i] = learner(input_x[i])
+        y[i], h = learner(input_x[i].view(1, 1, input_x.shape[2]))
 
     y_rmse = None
     y_aare = None
@@ -154,9 +131,9 @@ if __name__ == '__main__':
         parser.add_argument('--input_size', type=int, help='The size of input layer')
         parser.add_argument('--hidden_layer_size', type=int, help='The size of hidden_layer')
         args = parser.parse_args()
-        train_x, train_y = gen_numpy(args.trainx, args.trainy, args.minmax)
+        train_x, train_y = gen_numpy_deepchem(args.trainx, args.trainy, args.minmax)
         _ = train(torch.tensor(train_x, dtype=torch.float), torch.tensor(train_y, dtype=torch.float),
-                args.hidden_layer_size, out_dir=args.outdir, n_epoches=32769)
+                args.hidden_layer_size, out_dir=args.outdir, n_epoches=65537)
     elif phase == 'test':
         parser.add_argument('--phase', type=str, help='The phase.')
         parser.add_argument('--testx', type=str, help='The x for test.')
@@ -166,7 +143,7 @@ if __name__ == '__main__':
         parser.add_argument('--input_size', type=int, help='The size of input layer')
         parser.add_argument('--hidden_layer_size', type=int, help='The size of hidden_layer')
         args = parser.parse_args()
-        test_x, test_y = gen_numpy(args.testx, args.testy, args.minmax)
+        test_x, test_y = gen_numpy_deepchem(args.testx, args.testy, args.minmax)
         y, y_rmse, y_aare = test(torch.tensor(test_x, dtype=torch.float), args.hidden_layer_size, args.weights_file, test_y)
         y = 0.5 * (y + 1.) * (max_y - min_y) + min_y
         test_y = 0.5 * (test_y + 1.) * (max_y - min_y) + min_y

@@ -17,14 +17,10 @@ class FFANN(nn.Module):
         self.model = nn.Sequential(
                 nn.Linear(input_size, hidden_layer_size, bias=True),
                 nn.Tanh(),
+                nn.Linear(hidden_layer_size, hidden_layer_size, bias=True),
+                nn.Tanh(),
                 nn.Linear(hidden_layer_size, 1, bias=True)
         )
-        if weights is not None:
-            with torch.no_grad():
-                self.hidden_layer.weight.copy_(torch.tensor(weights['hidden_layer'], dtype=torch.double))
-                self.hidden_layer.bias.copy_(torch.tensor(weights['hidden_layer_bias'], dtype=torch.double))
-                self.out_layer.weight.copy_(torch.tensor(weights['output_layer'], dtype=torch.double))
-                self.out_layer.bias.copy_(torch.tensor(weights['output_layer_bias'], dtype=torch.double))
 
     def init(self):
         torch.nn.init.xavier_uniform_(self.model.weight)
@@ -36,7 +32,7 @@ class FFANN(nn.Module):
     def save(self, path):
         torch.save(self.state_dict(), path)
 
-def train(train_x, train_y, hidden_layer_size, lr=0.001, n_epoches=8, out_dir="./weights/"):
+def train(train_x, train_y, hidden_layer_size, lr=0.0001, n_epoches=8, out_dir="./weights/"):
     num_of_data_points = train_x.shape[0]
     input_size = train_x.shape[1]
     train_y = train_y.view(train_y.shape[0], 1)
@@ -45,7 +41,7 @@ def train(train_x, train_y, hidden_layer_size, lr=0.001, n_epoches=8, out_dir=".
     #learner.eval()
     #learner.init()
     loss_func = nn.MSELoss()
-    optimizer = optim.Adam(learner.parameters(), lr=lr, weight_decay=1e-4)
+    optimizer = optim.Adam(learner.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[32768,65536], gamma=0.6)
 
     batch_size = int(num_of_data_points / 8 + 1)
